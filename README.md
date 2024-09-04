@@ -1,54 +1,22 @@
 How to Use
 1. Clone the Repository
-Start by cloning the repository to your local machine. Open Terminal and run the following commands:
+First, download or clone the repository to your computer.
 
-bash
-Copy code
-https://github.com/jjuustan/sims4fvr/blob/main/ummmm
-cd reshade-installer-macos
 2. Make the Script Executable
-Before running the script, you need to ensure it has the correct permissions. This step is crucial to allow the script to execute:
+Make sure the script can run by giving it the necessary permissions.
 
-bash
-Copy code
-chmod +x install_reshade.sh
-3. Install Required Dependencies
-Make sure you have the necessary dependencies installed on your macOS system. You can install them using Homebrew:
+3. Install Required Tools
+Ensure that Wine and other necessary tools like curl, git, grep, and tar are installed on your macOS. You can use Homebrew to install these tools if they aren't already installed.
 
-Wine: Required for running Windows executables like the ReShade installer.
-
-bash
-Copy code
-brew install --cask wine-stable
-Other Tools: curl, git, grep, and tar are typically pre-installed on macOS. If not, install them with:
-
-bash
-Copy code
-brew install curl git grep tar
 4. Run the Script
-With everything set up, you can now run the script:
+Once everything is set up, run the script to install ReShade on your macOS system.
 
-bash
-Copy code
-./install_reshade.sh
-This script will:
+(Optional) Wrap as a macOS App
+If you'd like to create a double-clickable macOS application:
 
-Prompt you to enter the path to the game directory.
-Automatically download the latest version of ReShade.
-Install ReShade using Wine, configuring it for your game.
-5. (Optional) Wrapping the Script into a macOS Application
-For a more user-friendly experience, you can wrap this script into a macOS application:
+Using Automator: Open Automator, create a new application, add a "Run Shell Script" action, paste the script, and save it as an application.
 
-Wrapping with Automator
-Open Automator and create a new application.
-Add a "Run Shell Script" action and paste the script content.
-Save the Automator workflow as an application (ReShade Installer.app).
-Run the .app file by double-clicking it.
-Wrapping with Platypus
-Download Platypus from here.
-Create a new project, choose "Shell" as the script type, and paste in the script.
-Customize the settings, then build the .app bundle.
-Distribute or use the .app like any other macOS application.
-6. Troubleshooting
-Permissions Issues: If you encounter errors related to permissions, make sure the script is executable (chmod +x install_reshade.sh).
-Wine Not Found: If the script fails due to Wine not being found, verify that Wine is installed and configured correctly (brew install --cask wine-stable).
+Using Platypus: Download and install Platypus, create a new project with your script, customize it, and build the application.
+
+
+IM NOT A CODER!! THIS SCRIPT IS NOT GUARANTEED TO WORK!
