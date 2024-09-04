@@ -4,7 +4,7 @@ Start by cloning the repository to your local machine. Open Terminal and run the
 
 bash
 Copy code
-git clone https://github.com/yourusername/reshade-installer-macos.git
+https://github.com/jjuustan/sims4fvr/blob/main/ummmm
 cd reshade-installer-macos
 2. Make the Script Executable
 Before running the script, you need to ensure it has the correct permissions. This step is crucial to allow the script to execute:
