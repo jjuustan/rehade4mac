@@ -2,7 +2,7 @@
 
 # Function to print error and exit
 printErr() {
-    echo -e "\e[40m\e[31mError: $1\nExiting.\e[0m" >&2
+    echo -e "\033[0;41mError: $1\nExiting.\033[0m" >&2
     removeTempDir
     exit "${2:-1}"
 }
@@ -75,13 +75,26 @@ runReshadeInstaller() {
     wine "$reshadeExe" || printErr "Wine failed to execute the installer."
 }
 
-# Check for required executables
-REQUIRED_EXECUTABLES="curl git grep tar wine"
-for exec in $REQUIRED_EXECUTABLES; do
-    if ! command -v "$exec" &> /dev/null; then
-        printErr "Program '$exec' is missing but is required."
+# Function to check if Wine is installed
+checkWine() {
+    if ! command -v wine &> /dev/null; then
+        printErr "Wine is not installed. Please install Wine using Homebrew: 'brew install --cask wine-stable'."
     fi
-done
+}
+
+# Function to check for required executables
+checkDependencies() {
+    REQUIRED_EXECUTABLES="curl git grep tar"
+    for exec in $REQUIRED_EXECUTABLES; do
+        if ! command -v "$exec" &> /dev/null; then
+            printErr "Program '$exec' is missing but is required. Please install it using Homebrew: 'brew install $exec'."
+        fi
+    done
+    checkWine
+}
+
+# Check for required executables
+checkDependencies
 
 # Initialize directories
 XDG_DATA_HOME=${XDG_DATA_HOME:-"$HOME/Library/Application Support"}
@@ -91,8 +104,8 @@ mkdir -p "$MAIN_PATH" "$RESHADE_PATH" "$MAIN_PATH/ReShade_shaders" "$MAIN_PATH/E
 
 # Update ReShade if needed
 LASTUPDATED=${LASTUPDATED:-0}
-if [[ -f LASTUPDATED ]]; then
-    LASTUPDATED=$(cat LASTUPDATED)
+if [[ -f "$MAIN_PATH/LASTUPDATED" ]]; then
+    LASTUPDATED=$(cat "$MAIN_PATH/LASTUPDATED")
 fi
 if [[ ! $LASTUPDATED =~ ^[0-9]+$ ]]; then
     LASTUPDATED=0
@@ -100,7 +113,7 @@ fi
 if [[ $LASTUPDATED -gt 0 && $(($(date +%s)-LASTUPDATED)) -lt 14400 ]]; then
     UPDATE_RESHADE=0
 else
-    date +%s > LASTUPDATED
+    date +%s > "$MAIN_PATH/LASTUPDATED"
 fi
 
 echo -e "------------------------------------------------------------------------------------------------\nReShade installer/updater for macOS games.\n------------------------------------------------------------------------------------------------\n"
