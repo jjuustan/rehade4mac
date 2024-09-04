@@ -2,8 +2,8 @@
 
 # Function to print error and exit
 printErr() {
+    echo -e "\e[40m\e[31mError: $1\nExiting.\e[0m" >&2
     removeTempDir
-    echo -e "\e[40m\e[31mError: $1\nExiting.\e[0m"
     exit "${2:-1}"
 }
 
@@ -57,49 +57,39 @@ removeTempDir() {
 downloadReshade() {
     local version="$1"
     local url="$2"
-    local exeFile="ReShade_Setup_$version.tar.gz"
+    local exeFile="ReShade_Setup_$version.exe"
 
     createTempDir
     curl -sLO "$url" || printErr "Could not download version $version of ReShade."
-    tar -xf "$exeFile" || printErr "Failed to extract ReShade using tar."
-    rm -f "$exeFile"
+    mv "$exeFile" "$tmpDir/$exeFile" || printErr "Failed to move ReShade installer."
 
-    local resCurPath="$RESHADE_PATH/$version"
-    mkdir -p "$resCurPath" || printErr "Failed to create directory $resCurPath."
-    mv ./* "$resCurPath" || printErr "Failed to move files to $resCurPath."
+    runReshadeInstaller "$tmpDir/$exeFile" || printErr "Failed to run ReShade installer."
 
     removeTempDir
 }
 
-SEPARATOR="------------------------------------------------------------------------------------------------"
-COMMON_OVERRIDES="d3d8 d3d9 d3d11 ddraw dinput8 dxgi opengl32"
-REQUIRED_EXECUTABLES="curl git grep tar"
-XDG_DATA_HOME=${XDG_DATA_HOME:-"$HOME/Library/Application Support"}
-MAIN_PATH=${MAIN_PATH:-"$XDG_DATA_HOME/reshade"}
-RESHADE_PATH="$MAIN_PATH/reshade"
-UPDATE_RESHADE=${UPDATE_RESHADE:-1}
-MERGE_SHADERS=${MERGE_SHADERS:-1}
-GLOBAL_INI=${GLOBAL_INI:-"ReShade.ini"}
-SHADER_REPOS=${SHADER_REPOS:-"https://github.com/CeeJayDK/SweetFX|sweetfx-shaders;https://github.com/martymcmodding/qUINT|martymc-shaders;https://github.com/BlueSkyDefender/AstrayFX|astrayfx-shaders;https://github.com/prod80/prod80-ReShade-Repository|prod80-shaders;https://github.com/crosire/reshade-shaders|reshade-shaders|slim"}
-RESHADE_VERSION=${RESHADE_VERSION:-"latest"}
-RESHADE_ADDON_SUPPORT=${RESHADE_ADDON_SUPPORT:-0}
-FORCE_RESHADE_UPDATE_CHECK=${FORCE_RESHADE_UPDATE_CHECK:-0}
-RESHADE_URL="https://reshade.me"
-RESHADE_URL_ALT="http://static.reshade.me"
+# Function to run ReShade installer with Wine
+runReshadeInstaller() {
+    local reshadeExe="$1"
+    echo "Running ReShade installer..."
+    wine "$reshadeExe" || printErr "Wine failed to execute the installer."
+}
 
 # Check for required executables
+REQUIRED_EXECUTABLES="curl git grep tar wine"
 for exec in $REQUIRED_EXECUTABLES; do
     if ! command -v "$exec" &> /dev/null; then
-        echo "Program '$exec' is missing, but it is required."
-        exit 1
+        printErr "Program '$exec' is missing but is required."
     fi
 done
 
-# Create necessary directories
-mkdir -p "$MAIN_PATH" || printErr "Unable to create directory '$MAIN_PATH'."
-mkdir -p "$RESHADE_PATH" "$MAIN_PATH/ReShade_shaders" "$MAIN_PATH/External_shaders" || printErr "Unable to create necessary directories."
+# Initialize directories
+XDG_DATA_HOME=${XDG_DATA_HOME:-"$HOME/Library/Application Support"}
+MAIN_PATH=${MAIN_PATH:-"$XDG_DATA_HOME/reshade"}
+RESHADE_PATH="$MAIN_PATH/reshade"
+mkdir -p "$MAIN_PATH" "$RESHADE_PATH" "$MAIN_PATH/ReShade_shaders" "$MAIN_PATH/External_shaders" || printErr "Unable to create necessary directories."
 
-# Skip updating shaders/ReShade if recently done (4 hours)
+# Update ReShade if needed
 LASTUPDATED=${LASTUPDATED:-0}
 if [[ -f LASTUPDATED ]]; then
     LASTUPDATED=$(cat LASTUPDATED)
@@ -107,125 +97,17 @@ fi
 if [[ ! $LASTUPDATED =~ ^[0-9]+$ ]]; then
     LASTUPDATED=0
 fi
-if [[ $LASTUPDATED -gt 0 && $(($(date +%s) - LASTUPDATED)) -lt 14400 ]]; then
+if [[ $LASTUPDATED -gt 0 && $(($(date +%s)-LASTUPDATED)) -lt 14400 ]]; then
     UPDATE_RESHADE=0
-fi
-if [[ $UPDATE_RESHADE == 1 ]]; then
+else
     date +%s > LASTUPDATED
 fi
 
-echo -e "$SEPARATOR\nReShade installer/updater for macOS games.\n$SEPARATOR\n"
+echo -e "------------------------------------------------------------------------------------------------\nReShade installer/updater for macOS games.\n------------------------------------------------------------------------------------------------\n"
 
-# Function to link shader files
-linkShaderFiles() {
-    local srcDir="$1"
-    local destDir="$2"
-    if [[ ! -d $srcDir ]]; then
-        return
-    fi
-    cd "$srcDir" || return
-    for file in *; do
-        if [[ -f $file && ! -L "$destDir/$file" ]]; then
-            local infile="$(realpath "$srcDir/$file")"
-            local outdir="$(realpath "$destDir")"
-            mkdir -p "$outdir" || return
-            echo "Linking $infile to $outdir"
-            ln -s "$infile" "$outdir" || printErr "Failed to create symlink from $infile to $outdir."
-        fi
-    done
-}
+# Download and update ReShade
+RESHADE_VERSION=${RESHADE_VERSION:-"latest"}
+RESHADE_URL="https://reshade.me/downloads/ReShade_Setup_$RESHADE_VERSION.exe"
+downloadReshade "$RESHADE_VERSION" "$RESHADE_URL"
 
-# Function to merge shader directories
-mergeShaderDirs() {
-    local baseDir="$1"
-    local repoName="$2"
-    if [[ $baseDir != ReShade_shaders && $baseDir != External_shaders ]]; then
-        return
-    fi
-    for dirName in Shaders Textures; do
-        local dirPath
-        if [[ $baseDir == "ReShade_shaders" ]]; then
-            dirPath=$(find "$MAIN_PATH/$baseDir/$repoName" -type d -name "$dirName")
-        else
-            dirPath="$MAIN_PATH/$baseDir/$dirName"
-        fi
-        linkShaderFiles "$dirPath" "$MAIN_PATH/ReShade_shaders/Merged/$dirName"
-        while IFS= read -rd '' anyDir; do
-            linkShaderFiles "$dirPath/$anyDir" "$MAIN_PATH/ReShade_shaders/Merged/$dirName/$anyDir"
-        done < <(find "$dirPath" -mindepth 1 -maxdepth 1 -type d -print0)
-    done
-}
-
-if [[ -n $SHADER_REPOS ]]; then
-    echo "Checking for ReShade Shader updates."
-    [[ $REBUILD_MERGE == 1 ]] && rm -rf "$MAIN_PATH/ReShade_shaders/Merged/"
-    [[ $MERGE_SHADERS == 1 ]] && mkdir -p "$MAIN_PATH/ReShade_shaders/Merged/Shaders" "$MAIN_PATH/ReShade_shaders/Merged/Textures"
-    IFS=';' read -ra repos <<< "$SHADER_REPOS"
-    for repo in "${repos[@]}"; do
-        local repoUri branchName localRepoName
-        repoUri=$(echo "$repo" | cut -d'|' -f1)
-        localRepoName=$(echo "$repo" | cut -d'|' -f2)
-        branchName=$(echo "$repo" | cut -d'|' -f3)
-        if [[ -d "$MAIN_PATH/ReShade_shaders/$localRepoName" ]]; then
-            if [[ $UPDATE_RESHADE -eq 1 ]]; then
-                cd "$MAIN_PATH/ReShade_shaders/$localRepoName" || continue
-                echo "Updating ReShade shader repository $repoUri."
-                git pull || echo "Could not update shader repo: $repoUri."
-            fi
-        else
-            cd "$MAIN_PATH/ReShade_shaders" || exit 1
-            git clone ${branchName:+--branch "$branchName"} "$repoUri" "$localRepoName" || echo "Could not clone Shader repo: $repoUri."
-        fi
-        [[ $MERGE_SHADERS == 1 ]] && mergeShaderDirs "ReShade_shaders" "$localRepoName"
-    done
-    if [[ $MERGE_SHADERS == 1 && -d "$MAIN_PATH/External_shaders" ]]; then
-        echo "Checking for External Shader updates."
-        mergeShaderDirs "External_shaders"
-        cd "$MAIN_PATH/External_shaders" || exit 1
-        for file in *; do
-            if [[ -f $file && ! -L "$MAIN_PATH/ReShade_shaders/Merged/Shaders/$file" ]]; then
-                local infile="$(realpath "$MAIN_PATH/External_shaders/$file")"
-                local outdir="$MAIN_PATH/ReShade_shaders/Merged/Shaders/"
-                echo "Linking $infile to $outdir"
-                ln -s "$infile" "$outdir" || printErr "Failed to create symlink from $infile to $outdir."
-            fi
-        done
-    fi
-fi
-
-# Function to download and install ReShade
-downloadAndInstallReshade() {
-    local reshadeVersion="$1"
-    local reshadeUrl="$2"
-    local reshadeExe="ReShade_Setup_$reshadeVersion.exe"
-    local reshadeTmpDir="$tmpDir/reshade"
-
-    createTempDir
-    curl -sLO "$reshadeUrl" || printErr "Could not download ReShade."
-    chmod +x "$reshadeExe"
-    local gamePath
-    gamePath=$(getGamePath)
-    if [[ ! -x "$gamePath" ]]; then
-        printErr "The executable in \"$gamePath\" is not valid or cannot be executed."
-    fi
-    echo "Running ReShade installer."
-    WINEPREFIX="$tmpDir" wine "$reshadeExe" || printErr "Failed to run ReShade installer."
-
-    removeTempDir
-}
-
-# Download and install ReShade
-if [[ $UPDATE_RESHADE -eq 1 ]]; then
-    if [[ $RESHADE_VERSION == "latest" ]]; then
-        echo "Downloading the latest version of ReShade."
-        downloadAndInstallReshade "latest" "$RESHADE_URL/latest.zip"
-    else
-        echo "Downloading ReShade version $RESHADE_VERSION."
-        downloadAndInstallReshade "$RESHADE_VERSION" "$RESHADE_URL/$RESHADE_VERSION.zip"
-    fi
-else
-    echo "Skipping ReShade update."
-fi
-
-# Final message
-echo -e "$SEPARATOR\nProcess completed.\n$SEPARATOR"
+echo "ReShade installation complete."
